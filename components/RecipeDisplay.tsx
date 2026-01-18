@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Recipe } from "@/types/recipe";
 
 interface RecipeDisplayProps {
@@ -7,6 +8,21 @@ interface RecipeDisplayProps {
 }
 
 export function RecipeDisplay({ recipe }: RecipeDisplayProps) {
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<number>>(new Set());
+  const [activeStep, setActiveStep] = useState<number | null>(null);
+
+  const toggleIngredient = (index: number) => {
+    setCheckedIngredients((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   const handleCopy = async () => {
     const text = formatRecipeAsText(recipe);
     await navigator.clipboard.writeText(text);
@@ -63,48 +79,106 @@ export function RecipeDisplay({ recipe }: RecipeDisplayProps) {
         )}
       </div>
 
-      {/* Ingredients */}
+      {/* Ingredients - Split Alignment Checklist */}
       <div className="mb-8">
         <h3 className="text-lg font-semibold text-gray-900 mb-3">Ingredients</h3>
-        <ul className="space-y-2">
-          {recipe.ingredients.map((ingredient, index) => (
-            <li key={index} className="flex text-gray-700">
-              <span className="w-24 flex-shrink-0 font-medium">
-                {ingredient.amount}
-                {ingredient.unit ? ` ${ingredient.unit}` : ""}
-              </span>
-              <span>
-                {ingredient.item}
-                {ingredient.notes && (
-                  <span className="text-gray-500 ml-1">({ingredient.notes})</span>
-                )}
-              </span>
-            </li>
-          ))}
+        <ul className="space-y-1">
+          {recipe.ingredients.map((ingredient, index) => {
+            const isChecked = checkedIngredients.has(index);
+            return (
+              <li
+                key={index}
+                onClick={() => toggleIngredient(index)}
+                className={`flex items-center justify-between py-2 px-3 rounded-lg cursor-pointer
+                           transition-all duration-200 hover:bg-stone-50
+                           ${isChecked ? "opacity-60" : ""}`}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`w-5 h-5 rounded border-2 flex items-center justify-center
+                               transition-colors duration-200
+                               ${isChecked
+                                 ? "bg-emerald-500 border-emerald-500 text-white"
+                                 : "border-stone-300"}`}
+                  >
+                    {isChecked && (
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </span>
+                  <span className={`text-stone-700 ${isChecked ? "line-through text-stone-400" : ""}`}>
+                    {ingredient.item}
+                    {ingredient.notes && (
+                      <span className="text-stone-400 ml-1">({ingredient.notes})</span>
+                    )}
+                  </span>
+                </div>
+                <span className={`text-right font-medium tabular-nums
+                                 ${isChecked ? "line-through text-stone-400" : "text-stone-600"}`}>
+                  {ingredient.amount}
+                  {ingredient.unit ? ` ${ingredient.unit}` : ""}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       </div>
 
-      {/* Steps */}
+      {/* Steps - Focus Mode Instruction Highlighting */}
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-3">Instructions</h3>
-        <ol className="space-y-4">
-          {recipe.steps.map((step) => (
-            <li key={step.number} className="flex gap-4">
-              <span className="flex-shrink-0 w-8 h-8 bg-blue-100 text-blue-700
-                               rounded-full flex items-center justify-center font-medium">
-                {step.number}
-              </span>
-              <div className="flex-1 pt-1">
-                <p className="text-gray-700">{step.instruction}</p>
-                {step.tip && (
-                  <p className="mt-1 text-sm text-gray-500 italic">
-                    Tip: {step.tip}
-                  </p>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Instructions</h3>
+        <div className="relative">
+          {recipe.steps.map((step, index) => {
+            const isActive = activeStep === step.number;
+            const isLast = index === recipe.steps.length - 1;
+
+            return (
+              <div key={step.number} className="relative flex gap-4">
+                {/* Connecting Line */}
+                {!isLast && (
+                  <div className="absolute left-4 top-10 w-px h-[calc(100%-1rem)] bg-stone-200" />
                 )}
+
+                {/* Step Number */}
+                <div
+                  className={`relative z-10 flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                             font-medium transition-all duration-200
+                             ${isActive
+                               ? "bg-amber-500 text-white scale-110"
+                               : "bg-stone-100 text-stone-600"}`}
+                >
+                  {step.number}
+                </div>
+
+                {/* Step Content */}
+                <div
+                  onClick={() => setActiveStep(isActive ? null : step.number)}
+                  className={`flex-1 mb-4 p-4 rounded-xl cursor-pointer transition-all duration-200
+                             ${isActive
+                               ? "bg-amber-50 border-2 border-amber-200 scale-[1.02] shadow-sm"
+                               : "bg-white border border-stone-100 opacity-90 hover:opacity-100 hover:border-stone-200"}`}
+                >
+                  {isActive && (
+                    <span className="inline-block px-2 py-0.5 mb-2 text-xs font-medium
+                                   bg-amber-200 text-amber-800 rounded-full">
+                      Current Step
+                    </span>
+                  )}
+                  <p className={`${isActive ? "text-stone-800" : "text-stone-600"}`}>
+                    {step.instruction}
+                  </p>
+                  {step.tip && (
+                    <p className={`mt-2 text-sm italic
+                                  ${isActive ? "text-amber-700" : "text-stone-400"}`}>
+                      Tip: {step.tip}
+                    </p>
+                  )}
+                </div>
               </div>
-            </li>
-          ))}
-        </ol>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

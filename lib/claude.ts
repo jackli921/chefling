@@ -1,8 +1,10 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import type { Recipe } from "@/types/recipe";
 import { buildRecipeExtractionPrompt } from "./prompts";
 
-const anthropic = new Anthropic();
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
 export class ClaudeError extends Error {
   constructor(message: string) {
@@ -18,23 +20,22 @@ export async function parseRecipeWithClaude(
 ): Promise<Recipe> {
   const prompt = buildRecipeExtractionPrompt(content, jsonLd, targetLanguage);
 
-  const message = await anthropic.messages.create({
-    model: "claude-sonnet-4-20250514",
-    max_tokens: 4096,
+  const completion = await groq.chat.completions.create({
+    model: "llama-3.3-70b-versatile",
     messages: [
       {
         role: "user",
         content: prompt,
       },
     ],
+    max_tokens: 4096,
   });
 
-  const textBlock = message.content.find((block) => block.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new ClaudeError("No text response from Claude");
-  }
+  const responseText = completion.choices[0]?.message?.content?.trim();
 
-  const responseText = textBlock.text.trim();
+  if (!responseText) {
+    throw new ClaudeError("No text response from Groq");
+  }
 
   // Try to extract JSON from the response
   let jsonText = responseText;
@@ -49,12 +50,12 @@ export async function parseRecipeWithClaude(
   try {
     recipe = JSON.parse(jsonText);
   } catch {
-    throw new ClaudeError("Failed to parse recipe JSON from Claude response");
+    throw new ClaudeError("Failed to parse recipe JSON from Groq response");
   }
 
   // Validate required fields
   if (!recipe.title || !Array.isArray(recipe.ingredients) || !Array.isArray(recipe.steps)) {
-    throw new ClaudeError("Invalid recipe structure returned from Claude");
+    throw new ClaudeError("Invalid recipe structure returned from Groq");
   }
 
   return recipe;
